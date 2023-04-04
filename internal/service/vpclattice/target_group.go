@@ -56,15 +56,15 @@ func ResourceTargetGroup() *schema.Resource {
 							ForceNew: true,
 							Elem: &schema.Resource{
 								Schema: map[string]*schema.Schema{
-									"enable": {
+									"enabled": {
 										Type:     schema.TypeBool,
 										Optional: true,
 									},
-									"interval": {
+									"health_check_interval_seconds": {
 										Type:     schema.TypeInt,
 										Optional: true,
 									},
-									"timeout": {
+									"health_check_timeout_seconds": {
 										Type:     schema.TypeInt,
 										Optional: true,
 									},
@@ -256,7 +256,7 @@ func resourceTargetGroupUpdate(ctx context.Context, d *schema.ResourceData, meta
 
 	if d.HasChange("name") {
 		update = true
-		in. = aws.String(d.Get("name").(string))
+		i = aws.String(d.Get("name").(string))
 	}
 
 	if d.HasChange("type") {
@@ -486,7 +486,7 @@ func flattenTargetGroupConfig(apiObject *types.TargetGroupConfig) map[string]int
 	}
 
 	if apiObject.HealthCheck != nil {
-		m["health_check"] = flattenHealthCheckConfig(apiObject.HealthCheck)
+		m["health_check"] = []interface{}{flattenHealthCheckConfig(apiObject.HealthCheck)}
 	}
 
 	return m
@@ -498,15 +498,15 @@ func flattenHealthCheckConfig(apiObject *types.HealthCheckConfig) map[string]int
 	}
 
 	m := map[string]interface{}{
-		"enable":              aws.Bool(*apiObject.Enabled),
-		"interval":            aws.Int32(*apiObject.HealthCheckIntervalSeconds),
-		"timeout":             aws.Int32(*apiObject.HealthCheckTimeoutSeconds),
-		"healthy_threshold":   aws.Int32(*apiObject.HealthyThresholdCount),
-		"unhealthy_threshold": aws.Int32(*apiObject.UnhealthyThresholdCount),
-		"path":                aws.String(*apiObject.Path),
-		"port":                aws.Int32(*apiObject.Port),
-		"protocol":            string(apiObject.Protocol),
-		"protocol_version":    string(apiObject.ProtocolVersion),
+		"enabled":                       aws.Bool(*apiObject.Enabled),
+		"health_check_interval_seconds": aws.Int32(*apiObject.HealthCheckIntervalSeconds),
+		"health_check_timeout_seconds":  aws.Int32(*apiObject.HealthCheckTimeoutSeconds),
+		"healthy_threshold":             aws.Int32(*apiObject.HealthyThresholdCount),
+		"unhealthy_threshold":           aws.Int32(*apiObject.UnhealthyThresholdCount),
+		"path":                          aws.String(*apiObject.Path),
+		"port":                          aws.Int32(*apiObject.Port),
+		"protocol":                      aws.String(apiObject.Protocol),
+		"protocol_version":              aws.String(apiObject.ProtocolVersion),
 	}
 
 	if matcher, ok := apiObject.Matcher.(*types.MatcherMemberHttpCode); ok {
@@ -516,7 +516,7 @@ func flattenHealthCheckConfig(apiObject *types.HealthCheckConfig) map[string]int
 	return m
 }
 
-func expandTargetGroupAttributes(tfMap map[string]interface{}) *types.TargetGroup {
+func expandTargetGroupAttributes(tfMap map[string]interface{}) *types.CreateTargetGroupInput {
 	if tfMap == nil {
 		return nil
 	}
