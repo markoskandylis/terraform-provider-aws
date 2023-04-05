@@ -85,11 +85,9 @@ func ResourceTargetGroup() *schema.Resource {
 										Optional: true,
 									},
 									"matcher": {
-										Type:     schema.TypeMap,
+										Type:     schema.TypeString,
+										Computed: true,
 										Optional: true,
-										Elem: &schema.Schema{
-											Type: schema.TypeString,
-										},
 									},
 									"path": {
 										Type:     schema.TypeString,
@@ -491,32 +489,6 @@ func findTargetGroupByName(ctx context.Context, conn *vpclattice.Client, name st
 	return out, nil
 }
 
-// func flattenTargetGroupConfig(apiObject []*types.TargetGroupConfig) []map[string]interface{} {
-// 	if apiObject == nil {
-// 		return nil
-// 	}
-
-// 	m := map[string]interface{}{
-// 		"port":           aws.Int32(*apiObject.Port),
-// 		"protocol":       string(apiObject.Protocol),
-// 		"vpc_identifier": aws.String(*apiObject.VpcIdentifier),
-// 	}
-
-// 	if apiObject.IpAddressType != "" {
-// 		m["ip_address_type"] = string(apiObject.IpAddressType)
-// 	}
-
-// 	if apiObject.ProtocolVersion != "" {
-// 		m["protocol_version"] = string(apiObject.ProtocolVersion)
-// 	}
-
-// 	if apiObject.HealthCheck != nil {
-// 		m["health_check"] = []interface{}{flattenHealthCheckConfig(apiObject.HealthCheck)}
-// 	}
-
-// 	return m
-// }
-
 func flattenTargetGroupConfig(apiObject *types.TargetGroupConfig) []map[string]interface{} {
 	if apiObject == nil {
 		return nil
@@ -537,7 +509,7 @@ func flattenTargetGroupConfig(apiObject *types.TargetGroupConfig) []map[string]i
 	}
 
 	if apiObject.HealthCheck != nil {
-		m["health_check"] = []interface{}{flattenHealthCheckConfig(apiObject.HealthCheck)}
+		m["health_check"] = []map[string]interface{}{flattenHealthCheckConfig(apiObject.HealthCheck)}
 	}
 
 	return []map[string]interface{}{m}
@@ -561,7 +533,7 @@ func flattenHealthCheckConfig(apiObject *types.HealthCheckConfig) map[string]int
 	}
 
 	if matcher, ok := apiObject.Matcher.(*types.MatcherMemberHttpCode); ok {
-		m["matcher"] = aws.ToString(&matcher.Value)
+		m["matcher"] = matcher.Value
 	}
 
 	return m
@@ -609,7 +581,7 @@ func expandHealthCheckConfigAttributes(tfMap map[string]interface{}) *types.Heal
 
 	apiObject := &types.HealthCheckConfig{}
 
-	if v, ok := tfMap["enable"].(bool); ok {
+	if v, ok := tfMap["enabled"].(bool); ok {
 		apiObject.Enabled = aws.Bool(v)
 	}
 
@@ -645,12 +617,8 @@ func expandHealthCheckConfigAttributes(tfMap map[string]interface{}) *types.Heal
 		apiObject.ProtocolVersion = types.HealthCheckProtocolVersion(v)
 	}
 
-	if v, ok := tfMap["matcher"].(map[string]interface{}); ok {
-		matcher := &types.MatcherMemberHttpCode{}
-		if httpCode, ok := v["httpCode"].(string); ok {
-			matcher.Value = httpCode
-		}
-		apiObject.Matcher = matcher
+	if v, ok := tfMap["matcher"].(string); ok {
+		apiObject.Matcher = &types.MatcherMemberHttpCode{Value: v}
 	}
 
 	return apiObject
