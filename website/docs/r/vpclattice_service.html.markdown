@@ -16,6 +16,12 @@ Terraform resource for managing an AWS VPC Lattice Service.
 
 ```terraform
 resource "aws_vpclattice_service" "example" {
+<<<<<<< HEAD
+=======
+  name               = "example"
+  auth_type          = "AWS_IAM"
+  custom_domain_name = "example.com"
+>>>>>>> origin/main
 }
 ```
 
@@ -23,23 +29,43 @@ resource "aws_vpclattice_service" "example" {
 
 The following arguments are required:
 
+<<<<<<< HEAD
 * `example_arg` - (Required) Concise argument description. Do not begin the description with "An", "The", "Defines", "Indicates", or "Specifies," as these are verbose. In other words, "Indicates the amount of storage," can be rewritten as "Amount of storage," without losing any information.
 
 The following arguments are optional:
 
 * `optional_arg` - (Optional) Concise argument description. Do not begin the description with "An", "The", "Defines", "Indicates", or "Specifies," as these are verbose. In other words, "Indicates the amount of storage," can be rewritten as "Amount of storage," without losing any information.
+=======
+* `name` - (Required) Name of the service. The name must be unique within the account. The valid characters are a-z, 0-9, and hyphens (-). You can't use a hyphen as the first or last character, or immediately after another hyphen.Must be between 3 and 40 characters in length.
+
+The following arguments are optional:
+
+* `auth_type` - (Optional) Type of IAM policy. Either `NONE` or `AWS_IAM`.
+* `certificate_arn` - (Optional) Amazon Resource Name (ARN) of the certificate.
+* `custom_domain_name` - (Optional) Custom domain name of the service.
+* `tags` - (Optional) Key-value mapping of resource tags. If configured with a provider [`default_tags` configuration block](/docs/providers/aws/index.html#default_tags-configuration-block) present, tags with matching keys will overwrite those defined at the provider-level.
+>>>>>>> origin/main
 
 ## Attributes Reference
 
 In addition to all arguments above, the following attributes are exported:
 
+<<<<<<< HEAD
 * `arn` - ARN of the Service. Do not begin the description with "An", "The", "Defines", "Indicates", or "Specifies," as these are verbose. In other words, "Indicates the amount of storage," can be rewritten as "Amount of storage," without losing any information.
 * `example_attribute` - Concise description. Do not begin the description with "An", "The", "Defines", "Indicates", or "Specifies," as these are verbose. In other words, "Indicates the amount of storage," can be rewritten as "Amount of storage," without losing any information.
+=======
+* `arn` - ARN of the service. Do not begin the description with "An", "The", "Defines", "Indicates", or "Specifies," as these are verbose. In other words, "Indicates the amount of storage," can be rewritten as "Amount of storage," without losing any information.
+* `dns_entry` - Concise description. Do not begin the description with "An", "The", "Defines", "Indicates", or "Specifies," as these are verbose. In other words, "Indicates the amount of storage," can be rewritten as "Amount of storage," without losing any information.
+* `id` - Unique identifier for the service.
+* `status` - Status of the service.
+* `tags_all` - Map of tags assigned to the resource, including those inherited from the provider [`default_tags` configuration block](/docs/providers/aws/index.html#default_tags-configuration-block).
+>>>>>>> origin/main
 
 ## Timeouts
 
 [Configuration options](https://developer.hashicorp.com/terraform/language/resources/syntax#operation-timeouts):
 
+<<<<<<< HEAD
 * `create` - (Default `60m`)
 * `update` - (Default `180m`)
 * `delete` - (Default `90m`)
@@ -50,4 +76,15 @@ VPC Lattice Service can be imported using the `example_id_arg`, e.g.,
 
 ```
 $ terraform import aws_vpclattice_service.example rft-8012925589
+=======
+* `create` - (Default `5m`)
+* `delete` - (Default `5m`)
+
+## Import
+
+VPC Lattice Service can be imported using the `id`, e.g.,
+
+```
+$ terraform import aws_vpclattice_service.example svc-06728e2357ea55f8a
+>>>>>>> origin/main
 ```

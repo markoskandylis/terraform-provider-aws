@@ -12,12 +12,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/vpclattice"
 	"github.com/aws/aws-sdk-go-v2/service/vpclattice/types"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/id"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/hashicorp/terraform-provider-aws/internal/conns"
 	"github.com/hashicorp/terraform-provider-aws/internal/create"
-	"github.com/hashicorp/terraform-provider-aws/internal/errs/sdkdiag"
+	"github.com/hashicorp/terraform-provider-aws/internal/enum"
 
 	tftags "github.com/hashicorp/terraform-provider-aws/internal/tags"
 	"github.com/hashicorp/terraform-provider-aws/internal/tfresource"
@@ -180,28 +181,16 @@ const (
 )
 
 func resourceTargetGroupCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
 	conn := meta.(*conns.AWSClient).VPCLatticeClient()
 
 	in := &vpclattice.CreateTargetGroupInput{
-		Name: aws.String(d.Get("name").(string)),
-		Type: types.TargetGroupType(d.Get("type").(string)),
-		// ClientToken: aws.String(d.Get("client_toekn").(string)),
+		Name:        aws.String(d.Get("name").(string)),
+		Type:        types.TargetGroupType(d.Get("type").(string)),
+		ClientToken: aws.String(id.UniqueId()),
+		Tags:        GetTagsIn(ctx),
 	}
 
 	if d.Get("type") != string(types.TargetGroupTypeLambda) {
-		// if _, ok := d.GetOk("port"); !ok {
-		// 	return sdkdiag.AppendErrorf(diags, "port should be set when target type is %s", d.Get("type").(string))
-		// }
-
-		// if _, ok := d.GetOk("protocol"); !ok {
-		// 	return sdkdiag.AppendErrorf(diags, "protocol should be set when target type is %s", d.Get("type").(string))
-		// }
-
-		// if _, ok := d.GetOk("vpc_identifier"); !ok {
-		// 	return sdkdiag.AppendErrorf(diags, "vpc_id should be set when target type is %s", d.Get("type").(string))
-		// }
-
 		if v, ok := d.GetOk("config"); ok && len(v.([]interface{})) > 0 {
 			config := expandConfigAttributes(v.([]interface{})[0].(map[string]interface{}))
 			in.Config = &types.TargetGroupConfig{
@@ -216,29 +205,18 @@ func resourceTargetGroupCreate(ctx context.Context, d *schema.ResourceData, meta
 	}
 
 	out, err := conn.CreateTargetGroup(ctx, in)
-
 	if err != nil {
-		return sdkdiag.AppendErrorf(diags, "creating VPCLattice Target Group: %s", err)
+		return create.DiagError(names.VPCLattice, create.ErrActionCreating, ResNameService, d.Get("name").(string), err)
 	}
 
-	if len(*out.Id) == 0 {
-		return sdkdiag.AppendErrorf(diags, "creating VPCLattice Target Group: no groups returned in response")
+	if out == nil {
+		return create.DiagError(names.VPCLattice, create.ErrActionCreating, ResNameService, d.Get("name").(string), errors.New("empty output"))
 	}
 
 	d.SetId(aws.ToString(out.Id))
 
-	// if err != nil {
-	// 	return create.DiagError(names.VPCLattice, create.ErrActionCreating, ResNameTargetGroup, d.Get("name").(string), err)
-	// }
-
-	// if out == nil || out.Config == nil {
-	// 	log.Printf("[DEBUG] CreateTargetGroup output is empty: %v", out)
-	// 	log.Printf("[DEBUG] CreateTargetGroup error: %v", err)
-	// 	return create.DiagError(names.VPCLattice, create.ErrActionCreating, ResNameTargetGroup, d.Get("name").(string), errors.New("empty output"))
-	// }
-
-	if _, err := waitTargetGroupCreated(ctx, conn, d.Id(), d.Timeout(schema.TimeoutCreate)); err != nil {
-		return create.DiagError(names.VPCLattice, create.ErrActionWaitingForCreation, ResNameTargetGroup, d.Id(), err)
+	if _, err := waitServiceCreated(ctx, conn, d.Id(), d.Timeout(schema.TimeoutCreate)); err != nil {
+		return create.DiagError(names.VPCLattice, create.ErrActionWaitingForCreation, ResNameService, d.Id(), err)
 	}
 
 	return resourceTargetGroupRead(ctx, d, meta)
@@ -261,22 +239,13 @@ func resourceTargetGroupRead(ctx context.Context, d *schema.ResourceData, meta i
 
 	d.Set("arn", out.Arn)
 	d.Set("name", out.Name)
-
-	if err := d.Set("config", flattenTargetGroupConfig(out.Config)); err != nil {
-		return create.DiagError(names.VPCLattice, create.ErrActionSetting, ResNameTargetGroup, d.Id(), err)
+	if out.Config != nil {
+		if err := d.Set("config", flattenTargetGroupConfig(out.Config)); err != nil {
+			return create.DiagError(names.VPCLattice, create.ErrActionSetting, ResNameTargetGroup, d.Id(), err)
+		}
+	} else {
+		d.Set("config", nil)
 	}
-
-	// defaultTagsConfig := meta.(*conns.AWSClient).DefaultTagsConfig
-	// ignoreTagsConfig := meta.(*conns.AWSClient).IgnoreTagsConfig
-	// tags = tftags.IgnoreConfig(ignoreTagsConfig)
-
-	// if err := d.Set("tags", tags.RemoveDefaultConfig(defaultTagsConfig).Map()); err != nil {
-	// 	return create.DiagError(names.VpcLattice, create.ErrActionSetting, ResNameTargetGroup, d.Id(), err)
-	// }
-
-	// if err := d.Set("tags_all", tags.Map()); err != nil {
-	// 	return create.DiagError(names.VpcLattice, create.ErrActionSetting, ResNameTargetGroup, d.Id(), err)
-	// }
 
 	return nil
 }
@@ -350,11 +319,10 @@ const (
 )
 
 func waitTargetGroupCreated(ctx context.Context, conn *vpclattice.Client, id string, timeout time.Duration) (*vpclattice.CreateTargetGroupOutput, error) {
-	const statusNormal = "ACTIVE"
 	stateConf := &resource.StateChangeConf{
-		Pending:                   []string{},
-		Target:                    []string{string(types.TargetGroupStatusActive)},
-		Refresh:                   statusTargetGroup(ctx, conn, id),
+		Pending:                   enum.Slice(types.),
+		Target:                    enum.Slice(types.ServiceStatusActive),
+		Refresh:                   statusService(ctx, conn, id),
 		Timeout:                   timeout,
 		NotFoundChecks:            20,
 		ContinuousTargetOccurence: 2,
