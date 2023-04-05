@@ -24,7 +24,12 @@ func (p *servicePackage) SDKDataSources(ctx context.Context) []*types.ServicePac
 }
 
 func (p *servicePackage) SDKResources(ctx context.Context) []*types.ServicePackageSDKResource {
-	return []*types.ServicePackageSDKResource{}
+	return []*types.ServicePackageSDKResource{
+		{
+			Factory:  ResourceTargetGroup,
+			TypeName: "aws_vpclattice_target_group",
+		},
+	}
 }
 
 func (p *servicePackage) ServicePackageName() string {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"reflect"
 	"strings"
 	"time"
 
@@ -16,8 +17,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/hashicorp/terraform-provider-aws/internal/conns"
 	"github.com/hashicorp/terraform-provider-aws/internal/create"
+	"github.com/hashicorp/terraform-provider-aws/internal/errs/sdkdiag"
 
-	// "github.com/hashicorp/terraform-provider-aws/internal/flex"
 	tftags "github.com/hashicorp/terraform-provider-aws/internal/tags"
 	"github.com/hashicorp/terraform-provider-aws/internal/tfresource"
 	"github.com/hashicorp/terraform-provider-aws/names"
@@ -42,11 +43,18 @@ func ResourceTargetGroup() *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
+			"arn": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			"client_token": {
+				Type:     schema.TypeString,
+				Optional: true,
+			},
 			"config": {
 				Type:     schema.TypeList,
 				Optional: true,
 				MaxItems: 1,
-				ForceNew: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"health_check": {
@@ -56,7 +64,7 @@ func ResourceTargetGroup() *schema.Resource {
 							ForceNew: true,
 							Elem: &schema.Resource{
 								Schema: map[string]*schema.Schema{
-									"enable": {
+									"enabled": {
 										Type:     schema.TypeBool,
 										Optional: true,
 									},
@@ -141,7 +149,7 @@ func ResourceTargetGroup() *schema.Resource {
 								"HTTP2",
 							}, true),
 						},
-						"vpc_id": {
+						"vpc_identifier": {
 							Type:     schema.TypeString,
 							Optional: true,
 							ForceNew: true,
@@ -157,6 +165,11 @@ func ResourceTargetGroup() *schema.Resource {
 			"name": {
 				Type:     schema.TypeString,
 				Required: true,
+				ForceNew: true,
+			},
+			"id": {
+				Type:     schema.TypeString,
+				Computed: true,
 			},
 			"tags":     tftags.TagsSchema(),
 			"tags_all": tftags.TagsSchemaComputed(),
@@ -169,37 +182,62 @@ const (
 )
 
 func resourceTargetGroupCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	var diags diag.Diagnostics
 	conn := meta.(*conns.AWSClient).VPCLatticeClient()
 
 	in := &vpclattice.CreateTargetGroupInput{
 		Name: aws.String(d.Get("name").(string)),
 		Type: types.TargetGroupType(d.Get("type").(string)),
+		// ClientToken: aws.String(d.Get("client_toekn").(string)),
 	}
 
-	if v, ok := d.GetOk("config"); ok && len(v.([]interface{})) > 0 {
-		config := expandConfigAttributes(v.([]interface{})[0].(map[string]interface{}))
-		in.Config = &types.TargetGroupConfig{
-			Port:            config.Port,
-			Protocol:        config.Protocol,
-			VpcIdentifier:   config.VpcIdentifier,
-			IpAddressType:   config.IpAddressType,
-			ProtocolVersion: config.ProtocolVersion,
-			HealthCheck:     config.HealthCheck,
+	if d.Get("type") != string(types.TargetGroupTypeLambda) {
+		// if _, ok := d.GetOk("port"); !ok {
+		// 	return sdkdiag.AppendErrorf(diags, "port should be set when target type is %s", d.Get("type").(string))
+		// }
+
+		// if _, ok := d.GetOk("protocol"); !ok {
+		// 	return sdkdiag.AppendErrorf(diags, "protocol should be set when target type is %s", d.Get("type").(string))
+		// }
+
+		// if _, ok := d.GetOk("vpc_identifier"); !ok {
+		// 	return sdkdiag.AppendErrorf(diags, "vpc_id should be set when target type is %s", d.Get("type").(string))
+		// }
+
+		if v, ok := d.GetOk("config"); ok && len(v.([]interface{})) > 0 {
+			config := expandConfigAttributes(v.([]interface{})[0].(map[string]interface{}))
+			in.Config = &types.TargetGroupConfig{
+				Port:            config.Port,
+				Protocol:        config.Protocol,
+				VpcIdentifier:   config.VpcIdentifier,
+				IpAddressType:   config.IpAddressType,
+				ProtocolVersion: config.ProtocolVersion,
+				HealthCheck:     config.HealthCheck,
+			}
 		}
 	}
 
-	// in.Tags = d.Get("tags")
-
 	out, err := conn.CreateTargetGroup(ctx, in)
+
 	if err != nil {
-		return create.DiagError(names.VPCLattice, create.ErrActionCreating, ResNameTargetGroup, d.Get("name").(string), err)
+		return sdkdiag.AppendErrorf(diags, "creating VPCLattice Target Group: %s", err)
 	}
 
-	if out == nil || out.Config == nil {
-		return create.DiagError(names.VPCLattice, create.ErrActionCreating, ResNameTargetGroup, d.Get("name").(string), errors.New("empty output"))
+	if len(*out.Id) == 0 {
+		return sdkdiag.AppendErrorf(diags, "creating VPCLattice Target Group: no groups returned in response")
 	}
 
 	d.SetId(aws.ToString(out.Id))
+
+	// if err != nil {
+	// 	return create.DiagError(names.VPCLattice, create.ErrActionCreating, ResNameTargetGroup, d.Get("name").(string), err)
+	// }
+
+	// if out == nil || out.Config == nil {
+	// 	log.Printf("[DEBUG] CreateTargetGroup output is empty: %v", out)
+	// 	log.Printf("[DEBUG] CreateTargetGroup error: %v", err)
+	// 	return create.DiagError(names.VPCLattice, create.ErrActionCreating, ResNameTargetGroup, d.Get("name").(string), errors.New("empty output"))
+	// }
 
 	if _, err := waitTargetGroupCreated(ctx, conn, d.Id(), d.Timeout(schema.TimeoutCreate)); err != nil {
 		return create.DiagError(names.VPCLattice, create.ErrActionWaitingForCreation, ResNameTargetGroup, d.Id(), err)
@@ -227,12 +265,13 @@ func resourceTargetGroupRead(ctx context.Context, d *schema.ResourceData, meta i
 	d.Set("name", out.Name)
 
 	if err := d.Set("config", flattenTargetGroupConfig(out.Config)); err != nil {
+		log.Printf("[WARN] VpcLattice TargetGroup (%s) error on readStage", d.Id())
 		return create.DiagError(names.VPCLattice, create.ErrActionSetting, ResNameTargetGroup, d.Id(), err)
 	}
 
 	// defaultTagsConfig := meta.(*conns.AWSClient).DefaultTagsConfig
 	// ignoreTagsConfig := meta.(*conns.AWSClient).IgnoreTagsConfig
-	// tags = tags.IgnoreAWS().IgnoreConfig(ignoreTagsConfig)
+	// tags = tftags.IgnoreConfig(ignoreTagsConfig)
 
 	// if err := d.Set("tags", tags.RemoveDefaultConfig(defaultTagsConfig).Map()); err != nil {
 	// 	return create.DiagError(names.VpcLattice, create.ErrActionSetting, ResNameTargetGroup, d.Id(), err)
@@ -248,47 +287,35 @@ func resourceTargetGroupRead(ctx context.Context, d *schema.ResourceData, meta i
 func resourceTargetGroupUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	conn := meta.(*conns.AWSClient).VPCLatticeClient()
 
-	update := false
-
 	in := &vpclattice.UpdateTargetGroupInput{
 		TargetGroupIdentifier: aws.String(d.Id()),
 	}
 
-	if d.HasChange("name") {
-		update = true
-		in. = aws.String(d.Get("name").(string))
-	}
-
-	if d.HasChange("type") {
-		update = true
-		in.Type = types.TargetGroupType(d.Get("type").(string))
-	}
-
 	if d.HasChange("config") {
-		update = true
-		if v, ok := d.GetOk("config"); ok && len(v.([]interface{})) > 0 {
-			config := expandConfigAttributes(v.([]interface{})[0].(map[string]interface{}))
-			in.Config = &types.TargetGroupConfig{
-				Port:            config.Port,
-				Protocol:        config.Protocol,
-				VpcIdentifier:   config.VpcIdentifier,
-				IpAddressType:   config.IpAddressType,
-				ProtocolVersion: config.ProtocolVersion,
-				HealthCheck:     config.HealthCheck,
-			}
+		oldConfig, newConfig := d.GetChange("config")
+		oldConfigMap := oldConfig.(map[string]interface{})
+		newConfigMap := newConfig.(map[string]interface{})
+
+		oldHealthCheck := expandHealthCheckConfigAttributes(oldConfigMap["health_check"].(map[string]interface{}))
+		newHealthCheck := expandHealthCheckConfigAttributes(newConfigMap["health_check"].(map[string]interface{}))
+
+		if !reflect.DeepEqual(oldHealthCheck, newHealthCheck) {
+			in.HealthCheck = newHealthCheck
 		}
 	}
 
-	if update {
-		log.Printf("[DEBUG] Updating VpcLattice TargetGroup (%s): %#v", d.Id(), in)
-		out, err := conn.UpdateTargetGroup(ctx, in)
-		if err != nil {
-			return create.DiagError(names.VPCLattice, create.ErrActionUpdating, ResNameTargetGroup, d.Id(), err)
-		}
+	if in.HealthCheck == nil {
+		return nil
+	}
 
-		if _, err := waitTargetGroupUpdated(ctx, conn, aws.ToString(out.OperationId), d.Timeout(schema.TimeoutUpdate)); err != nil {
-			return create.DiagError(names.VPCLattice, create.ErrActionWaitingForUpdate, ResNameTargetGroup, d.Id(), err)
-		}
+	log.Printf("[DEBUG] Updating VpcLattice TargetGroup (%s): %#v", d.Id(), in)
+	out, err := conn.UpdateTargetGroup(ctx, in)
+	if err != nil {
+		return create.DiagError(names.VPCLattice, create.ErrActionUpdating, ResNameTargetGroup, d.Id(), err)
+	}
+
+	if _, err := waitTargetGroupUpdated(ctx, conn, aws.ToString(out.Id), d.Timeout(schema.TimeoutUpdate)); err != nil {
+		return create.DiagError(names.VPCLattice, create.ErrActionWaitingForUpdate, ResNameTargetGroup, d.Id(), err)
 	}
 
 	return resourceTargetGroupRead(ctx, d, meta)
@@ -300,7 +327,7 @@ func resourceTargetGroupDelete(ctx context.Context, d *schema.ResourceData, meta
 	log.Printf("[INFO] Deleting VpcLattice TargetGroup %s", d.Id())
 
 	_, err := conn.DeleteTargetGroup(ctx, &vpclattice.DeleteTargetGroupInput{
-		Id: aws.String(d.Id()),
+		TargetGroupIdentifier: aws.String(d.Id()),
 	})
 	if err != nil {
 		var nfe *types.ResourceNotFoundException
@@ -311,12 +338,10 @@ func resourceTargetGroupDelete(ctx context.Context, d *schema.ResourceData, meta
 		return create.DiagError(names.VPCLattice, create.ErrActionDeleting, ResNameTargetGroup, d.Id(), err)
 	}
 
-	// TIP: -- 4. Use a waiter to wait for delete to complete
 	if _, err := waitTargetGroupDeleted(ctx, conn, d.Id(), d.Timeout(schema.TimeoutDelete)); err != nil {
 		return create.DiagError(names.VPCLattice, create.ErrActionWaitingForDeletion, ResNameTargetGroup, d.Id(), err)
 	}
 
-	// TIP: -- 5. Return nil
 	return nil
 }
 
@@ -328,9 +353,10 @@ const (
 )
 
 func waitTargetGroupCreated(ctx context.Context, conn *vpclattice.Client, id string, timeout time.Duration) (*vpclattice.CreateTargetGroupOutput, error) {
+	const statusNormal = "ACTIVE"
 	stateConf := &resource.StateChangeConf{
 		Pending:                   []string{},
-		Target:                    []string{statusNormal},
+		Target:                    []string{string(types.TargetGroupStatusActive)},
 		Refresh:                   statusTargetGroup(ctx, conn, id),
 		Timeout:                   timeout,
 		NotFoundChecks:            20,
@@ -441,7 +467,6 @@ func findTargetGroupByARN(ctx context.Context, conn *vpclattice.Client, arn stri
 
 	return out, nil
 }
-
 func findTargetGroupByName(ctx context.Context, conn *vpclattice.Client, name string) (*vpclattice.GetTargetGroupOutput, error) {
 	in := &vpclattice.GetTargetGroupInput{
 		TargetGroupIdentifier: aws.String(name),
@@ -466,7 +491,33 @@ func findTargetGroupByName(ctx context.Context, conn *vpclattice.Client, name st
 	return out, nil
 }
 
-func flattenTargetGroupConfig(apiObject *types.TargetGroupConfig) map[string]interface{} {
+// func flattenTargetGroupConfig(apiObject []*types.TargetGroupConfig) []map[string]interface{} {
+// 	if apiObject == nil {
+// 		return nil
+// 	}
+
+// 	m := map[string]interface{}{
+// 		"port":           aws.Int32(*apiObject.Port),
+// 		"protocol":       string(apiObject.Protocol),
+// 		"vpc_identifier": aws.String(*apiObject.VpcIdentifier),
+// 	}
+
+// 	if apiObject.IpAddressType != "" {
+// 		m["ip_address_type"] = string(apiObject.IpAddressType)
+// 	}
+
+// 	if apiObject.ProtocolVersion != "" {
+// 		m["protocol_version"] = string(apiObject.ProtocolVersion)
+// 	}
+
+// 	if apiObject.HealthCheck != nil {
+// 		m["health_check"] = []interface{}{flattenHealthCheckConfig(apiObject.HealthCheck)}
+// 	}
+
+// 	return m
+// }
+
+func flattenTargetGroupConfig(apiObject *types.TargetGroupConfig) []map[string]interface{} {
 	if apiObject == nil {
 		return nil
 	}
@@ -486,10 +537,10 @@ func flattenTargetGroupConfig(apiObject *types.TargetGroupConfig) map[string]int
 	}
 
 	if apiObject.HealthCheck != nil {
-		m["health_check"] = flattenHealthCheckConfig(apiObject.HealthCheck)
+		m["health_check"] = []interface{}{flattenHealthCheckConfig(apiObject.HealthCheck)}
 	}
 
-	return m
+	return []map[string]interface{}{m}
 }
 
 func flattenHealthCheckConfig(apiObject *types.HealthCheckConfig) map[string]interface{} {
@@ -498,7 +549,7 @@ func flattenHealthCheckConfig(apiObject *types.HealthCheckConfig) map[string]int
 	}
 
 	m := map[string]interface{}{
-		"enable":              aws.Bool(*apiObject.Enabled),
+		"enabled":             aws.Bool(*apiObject.Enabled),
 		"interval":            aws.Int32(*apiObject.HealthCheckIntervalSeconds),
 		"timeout":             aws.Int32(*apiObject.HealthCheckTimeoutSeconds),
 		"healthy_threshold":   aws.Int32(*apiObject.HealthyThresholdCount),
@@ -516,40 +567,10 @@ func flattenHealthCheckConfig(apiObject *types.HealthCheckConfig) map[string]int
 	return m
 }
 
-func expandTargetGroupAttributes(tfMap map[string]interface{}) *types.TargetGroup {
-	if tfMap == nil {
-		return nil
-	}
-
-	apiObject := &types.TargetGroup{}
-
-	if v, ok := tfMap["name"].(string); ok {
-		apiObject.Name = aws.String(v)
-	}
-
-	if v, ok := tfMap["type"].(string); ok {
-		targetGroupType := types.TargetGroupTypeEnum(v)
-		apiObject.Type = targetGroupType
-	}
-
-	if v, ok := tfMap["tags"].(map[string]interface{}); ok {
-		tags := tftags.Expand(v)
-		apiObject.Tags = tags
-	}
-
-	if v, ok := tfMap["config"].([]interface{}); ok && len(v) > 0 {
-		config := expandConfigAttributes(v[0].(map[string]interface{}))
-		apiObject.TargetGroupConfig = config
-	}
-
-	return apiObject
-}
-
 func expandConfigAttributes(tfMap map[string]interface{}) *types.TargetGroupConfig {
 	if tfMap == nil {
 		return nil
 	}
-
 	apiObject := &types.TargetGroupConfig{}
 
 	if v, ok := tfMap["port"].(int); ok {
@@ -564,10 +585,8 @@ func expandConfigAttributes(tfMap map[string]interface{}) *types.TargetGroupConf
 	if v, ok := tfMap["vpc_identifier"].(string); ok {
 		apiObject.VpcIdentifier = aws.String(v)
 	}
-
-	if v, ok := tfMap["health_check"].(map[string]interface{}); ok {
-		hc := expandHealthCheckConfigAttributes(v)
-		apiObject.HealthCheck = hc
+	if v, ok := tfMap["health_check"].([]interface{}); ok && len(v) > 0 {
+		apiObject.HealthCheck = expandHealthCheckConfigAttributes(v[0].(map[string]interface{}))
 	}
 
 	if v, ok := tfMap["ip_address_type"].(string); ok {
