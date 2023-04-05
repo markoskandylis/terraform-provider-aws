@@ -263,7 +263,6 @@ func resourceTargetGroupRead(ctx context.Context, d *schema.ResourceData, meta i
 	d.Set("name", out.Name)
 
 	if err := d.Set("config", flattenTargetGroupConfig(out.Config)); err != nil {
-		log.Printf("[WARN] VpcLattice TargetGroup (%s) error on readStage", d.Id())
 		return create.DiagError(names.VPCLattice, create.ErrActionSetting, ResNameTargetGroup, d.Id(), err)
 	}
 
