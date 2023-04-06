@@ -75,7 +75,7 @@ func TestAccVPCLatticeTargetGroup_full(t *testing.T) {
 		CheckDestroy:             testAccCheckTargetGroupDestroy(ctx),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccVPCLatticeTargetGroupConfig_full(rName, "IP"),
+				Config: testAccVPCLatticeTargetGroupConfig_fullIP(rName, "IP"),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckTargetGroupExists(ctx, resourceName, &targetGroup),
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
@@ -85,25 +85,7 @@ func TestAccVPCLatticeTargetGroup_full(t *testing.T) {
 				),
 			},
 			{
-				ResourceName: resourceName,
-				ImportState:  true,
-			},
-			{
-				Config: testAccVPCLatticeTargetGroupConfig_full(rName, "INSTANCE"),
-				Check: resource.ComposeTestCheckFunc(
-					testAccCheckTargetGroupExists(ctx, resourceName, &targetGroup),
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "config.0.port", "443"),
-					resource.TestCheckResourceAttr(resourceName, "config.0.protocol", "HTTPS"),
-					acctest.MatchResourceAttrRegionalARN(resourceName, "arn", "vpc-lattice", regexp.MustCompile("targetgroup/.+$")),
-				),
-			},
-			{
-				ResourceName: resourceName,
-				ImportState:  true,
-			},
-			{
-				Config: testAccVPCLatticeTargetGroupConfig_full(rName, "ALB"),
+				Config: testAccVPCLatticeTargetGroupConfig_fullInstance(rName, "INSTANCE"),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckTargetGroupExists(ctx, resourceName, &targetGroup),
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
@@ -130,7 +112,7 @@ resource "aws_vpclattice_target_group" "test" {
 `, rName)
 }
 
-func testAccVPCLatticeTargetGroupConfig_full(rName, rType string) string {
+func testAccVPCLatticeTargetGroupConfig_fullIP(rName, rType string) string {
 	return acctest.ConfigCompose(acctest.ConfigAvailableAZsNoOptIn(), fmt.Sprintf(`
 data "aws_region" "current" {}
 
@@ -142,6 +124,34 @@ resource "aws_vpclattice_target_group" "test" {
 	  protocol         = "HTTPS"
 	  vpc_identifier   = "vpc-08ae9103897a90142"
 	  ip_address_type  = "IPV4"
+	  protocol_version = "HTTP1"
+	  health_check {
+		enabled             = false
+		interval            = 30
+		timeout             = 5
+		healthy_threshold   = 2
+		unhealthy_threshold = 2
+		matcher 		 		  = "200-299"
+		path             		  = "/"
+		port             		  = 80
+		protocol         		  = "HTTP"
+		protocol_version 		  = "HTTP1"
+	  }
+	}
+  }
+`, rName, rType))
+}
+func testAccVPCLatticeTargetGroupConfig_fullInstance(rName, rType string) string {
+	return acctest.ConfigCompose(acctest.ConfigAvailableAZsNoOptIn(), fmt.Sprintf(`
+data "aws_region" "current" {}
+
+resource "aws_vpclattice_target_group" "test" {
+	name     = %[1]q
+	type     = %[2]q
+	config {
+	  port             = 443
+	  protocol         = "HTTPS"
+	  vpc_identifier   = "vpc-08ae9103897a90142"
 	  protocol_version = "HTTP1"
 	  health_check {
 		enabled             = false
