@@ -88,6 +88,34 @@ func TestAccVPCLatticeTargetGroup_full(t *testing.T) {
 				ResourceName: resourceName,
 				ImportState:  true,
 			},
+			{
+				Config: testAccVPCLatticeTargetGroupConfig_full(rName, "INSTANCE"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckTargetGroupExists(ctx, resourceName, &targetGroup),
+					resource.TestCheckResourceAttr(resourceName, "name", rName),
+					resource.TestCheckResourceAttr(resourceName, "config.0.port", "443"),
+					resource.TestCheckResourceAttr(resourceName, "config.0.protocol", "HTTPS"),
+					acctest.MatchResourceAttrRegionalARN(resourceName, "arn", "vpc-lattice", regexp.MustCompile("targetgroup/.+$")),
+				),
+			},
+			{
+				ResourceName: resourceName,
+				ImportState:  true,
+			},
+			{
+				Config: testAccVPCLatticeTargetGroupConfig_full(rName, "ALB"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckTargetGroupExists(ctx, resourceName, &targetGroup),
+					resource.TestCheckResourceAttr(resourceName, "name", rName),
+					resource.TestCheckResourceAttr(resourceName, "config.0.port", "443"),
+					resource.TestCheckResourceAttr(resourceName, "config.0.protocol", "HTTPS"),
+					acctest.MatchResourceAttrRegionalARN(resourceName, "arn", "vpc-lattice", regexp.MustCompile("targetgroup/.+$")),
+				),
+			},
+			{
+				ResourceName: resourceName,
+				ImportState:  true,
+			},
 		},
 	})
 }
