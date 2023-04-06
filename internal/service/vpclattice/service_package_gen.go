@@ -45,7 +45,7 @@ func (p *servicePackage) SDKResources(ctx context.Context) []*types.ServicePacka
 			Factory:  ResourceTargetGroup,
 			TypeName: "aws_vpclattice_target_group",
 			Tags: &types.ServicePackageResourceTags{
-				IdentifierAttribute: "id",
+				IdentifierAttribute: "arn",
 			},
 		},
 	}

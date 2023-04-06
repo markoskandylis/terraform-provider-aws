@@ -19,13 +19,14 @@ import (
 	"github.com/hashicorp/terraform-provider-aws/internal/conns"
 	"github.com/hashicorp/terraform-provider-aws/internal/create"
 	"github.com/hashicorp/terraform-provider-aws/internal/enum"
-
 	tftags "github.com/hashicorp/terraform-provider-aws/internal/tags"
 	"github.com/hashicorp/terraform-provider-aws/internal/tfresource"
+	"github.com/hashicorp/terraform-provider-aws/internal/verify"
 	"github.com/hashicorp/terraform-provider-aws/names"
 )
 
 // @SDKResource("aws_vpclattice_target_group")
+// @Tags(identifierAttribute="arn")
 func ResourceTargetGroup() *schema.Resource {
 	return &schema.Resource{
 		CreateWithoutTimeout: resourceTargetGroupCreate,
@@ -177,6 +178,7 @@ func ResourceTargetGroup() *schema.Resource {
 			names.AttrTags:    tftags.TagsSchema(),
 			names.AttrTagsAll: tftags.TagsSchemaComputed(),
 		},
+		CustomizeDiff: verify.SetTagsDiff,
 	}
 }
 
@@ -259,35 +261,38 @@ func resourceTargetGroupRead(ctx context.Context, d *schema.ResourceData, meta i
 func resourceTargetGroupUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	conn := meta.(*conns.AWSClient).VPCLatticeClient()
 
-	in := &vpclattice.UpdateTargetGroupInput{
-		TargetGroupIdentifier: aws.String(d.Id()),
-	}
-
-	if d.HasChange("config") {
-		oldConfig, newConfig := d.GetChange("config")
-		oldConfigMap := oldConfig.(map[string]interface{})
-		newConfigMap := newConfig.(map[string]interface{})
-
-		oldHealthCheck := expandHealthCheckConfigAttributes(oldConfigMap["health_check"].(map[string]interface{}))
-		newHealthCheck := expandHealthCheckConfigAttributes(newConfigMap["health_check"].(map[string]interface{}))
-
-		if !reflect.DeepEqual(oldHealthCheck, newHealthCheck) {
-			in.HealthCheck = newHealthCheck
+	if d.HasChangesExcept("tags", "tags_all") {
+		in := &vpclattice.UpdateTargetGroupInput{
+			TargetGroupIdentifier: aws.String(d.Id()),
 		}
-	}
 
-	if in.HealthCheck == nil {
-		return nil
-	}
+		if d.HasChange("config") {
+			oldConfig, newConfig := d.GetChange("config")
+			oldConfigMap := oldConfig.(map[string]interface{})
+			newConfigMap := newConfig.(map[string]interface{})
 
-	log.Printf("[DEBUG] Updating VpcLattice TargetGroup (%s): %#v", d.Id(), in)
-	out, err := conn.UpdateTargetGroup(ctx, in)
-	if err != nil {
-		return create.DiagError(names.VPCLattice, create.ErrActionUpdating, ResNameTargetGroup, d.Id(), err)
-	}
+			oldHealthCheck := expandHealthCheckConfigAttributes(oldConfigMap["health_check"].(map[string]interface{}))
+			newHealthCheck := expandHealthCheckConfigAttributes(newConfigMap["health_check"].(map[string]interface{}))
 
-	if _, err := waitTargetGroupUpdated(ctx, conn, aws.ToString(out.Id), d.Timeout(schema.TimeoutUpdate)); err != nil {
-		return create.DiagError(names.VPCLattice, create.ErrActionWaitingForUpdate, ResNameTargetGroup, d.Id(), err)
+			if !reflect.DeepEqual(oldHealthCheck, newHealthCheck) {
+				in.HealthCheck = newHealthCheck
+			}
+		}
+
+		if in.HealthCheck == nil {
+			return nil
+		}
+
+		log.Printf("[DEBUG] Updating VpcLattice TargetGroup (%s): %#v", d.Id(), in)
+		out, err := conn.UpdateTargetGroup(ctx, in)
+		if err != nil {
+			return create.DiagError(names.VPCLattice, create.ErrActionUpdating, ResNameTargetGroup, d.Id(), err)
+		}
+
+		if _, err := waitTargetGroupUpdated(ctx, conn, aws.ToString(out.Id), d.Timeout(schema.TimeoutUpdate)); err != nil {
+			return create.DiagError(names.VPCLattice, create.ErrActionWaitingForUpdate, ResNameTargetGroup, d.Id(), err)
+		}
+
 	}
 
 	return resourceTargetGroupRead(ctx, d, meta)
