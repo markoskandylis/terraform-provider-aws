@@ -89,8 +89,8 @@ func TestAccVPCLatticeTargetGroup_full(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckTargetGroupExists(ctx, resourceName, &targetGroup),
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "config.0.port", "443"),
-					resource.TestCheckResourceAttr(resourceName, "config.0.protocol", "HTTPS"),
+					resource.TestCheckResourceAttr(resourceName, "config.0.port", "80"),
+					resource.TestCheckResourceAttr(resourceName, "config.0.protocol", "HTTP"),
 					acctest.MatchResourceAttrRegionalARN(resourceName, "arn", "vpc-lattice", regexp.MustCompile("targetgroup/.+$")),
 				),
 			},
@@ -149,8 +149,8 @@ resource "aws_vpclattice_target_group" "test" {
 	name     = %[1]q
 	type     = %[2]q
 	config {
-	  port             = 443
-	  protocol         = "HTTPS"
+	  port             = 80
+	  protocol         = "HTTP"
 	  vpc_identifier   = "vpc-08ae9103897a90142"
 	  protocol_version = "HTTP1"
 	  health_check {
@@ -170,6 +170,40 @@ resource "aws_vpclattice_target_group" "test" {
 `, rName, rType))
 }
 
+func testAccTargetgroupConfig_tags1(rName, tagKey1, tagValue1 string) string {
+	return fmt.Sprintf(`
+resource "aws_vpclattice_target_group" "test" {
+  name = %[1]q
+  type = "LAMBDA"
+
+  tags = {
+    %[2]q = %[3]q
+  }
+}
+`, rName, tagKey1, tagValue1)
+}
+
+func testAccTargetgroupConfig_tags2(rName, tagKey1, tagValue1, tagKey2, tagValue2 string) string {
+	return fmt.Sprintf(`
+resource "aws_vpclattice_target_group" "test" {
+  name = %[1]q
+  type = "INSTANCE"
+  config {
+	port             = 80
+	protocol         = "HTTP"
+	vpc_identifier   = "vpc-08ae9103897a90142"
+	protocol_version = "HTTP1"
+
+  }
+}
+  tags = {
+    %[2]q = %[3]q
+    %[4]q = %[5]q
+  }
+}
+`, rName, tagKey1, tagValue1, tagKey2, tagValue2)
+}
+
 func TestAccVPCLatticeTargetGroup_tags(t *testing.T) {
 	ctx := acctest.Context(t)
 	var targetGroup1, targetGroup2, targetGroup3 vpclattice.GetTargetGroupOutput
@@ -180,10 +214,10 @@ func TestAccVPCLatticeTargetGroup_tags(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(ctx, t); testAccPreCheck(ctx, t) },
 		ErrorCheck:               acctest.ErrorCheck(t, names.VPCLatticeEndpointID),
 		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories,
-		CheckDestroy:             testAccCheckServiceDestroy(ctx),
+		CheckDestroy:             testAccCheckTargetGroupDestroy(ctx),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccServiceConfig_tags1(rName, "key1", "value1"),
+				Config: testAccTargetgroupConfig_tags1(rName, "key1", "value1"),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckTargetGroupExists(ctx, resourceName, &targetGroup1),
 					resource.TestCheckResourceAttr(resourceName, "tags.%", "1"),
@@ -196,7 +230,7 @@ func TestAccVPCLatticeTargetGroup_tags(t *testing.T) {
 				ImportStateVerify: true,
 			},
 			{
-				Config: testAccServiceConfig_tags2(rName, "key1", "value1updated", "key2", "value2"),
+				Config: testAccTargetgroupConfig_tags2(rName, "key1", "value1updated", "key2", "value2"),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckTargetGroupExists(ctx, resourceName, &targetGroup2),
 					resource.TestCheckResourceAttr(resourceName, "tags.%", "2"),
@@ -205,7 +239,7 @@ func TestAccVPCLatticeTargetGroup_tags(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccServiceConfig_tags1(rName, "key2", "value2"),
+				Config: testAccTargetgroupConfig_tags1(rName, "key2", "value2"),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckTargetGroupExists(ctx, resourceName, &targetGroup3),
 					resource.TestCheckResourceAttr(resourceName, "tags.%", "1"),
