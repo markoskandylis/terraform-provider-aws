@@ -98,7 +98,7 @@ func ResourceTargetGroup() *schema.Resource {
 									"port": {
 										Type:         schema.TypeInt,
 										Optional:     true,
-										ValidateFunc: validation.IntBetween(1, 65535),
+										ValidateFunc: validation.IsPortNumber,
 									},
 									"protocol": {
 										Type:     schema.TypeString,
@@ -193,7 +193,7 @@ func resourceTargetGroupCreate(ctx context.Context, d *schema.ResourceData, meta
 		Name:        aws.String(d.Get("name").(string)),
 		Type:        types.TargetGroupType(d.Get("type").(string)),
 		ClientToken: aws.String(id.UniqueId()),
-		Tags:        GetTagsIn(ctx),
+		// Tags:        GetTagsIn(ctx),
 	}
 
 	if d.Get("type") != string(types.TargetGroupTypeLambda) {
@@ -322,13 +322,6 @@ func resourceTargetGroupDelete(ctx context.Context, d *schema.ResourceData, meta
 	return nil
 }
 
-// const (
-// 	statusChangePending = "Pending"
-// 	statusDeleting      = "Deleting"
-// 	statusNormal        = "Normal"
-// 	statusUpdated       = "Updated"
-// )
-
 func waitTargetGroupCreated(ctx context.Context, conn *vpclattice.Client, id string, timeout time.Duration) (*vpclattice.CreateTargetGroupOutput, error) {
 	stateConf := &resource.StateChangeConf{
 		Pending:                   enum.Slice(types.TargetGroupStatusCreateInProgress),
@@ -440,13 +433,17 @@ func flattenTargetGroupConfig(apiObject *types.TargetGroupConfig) []map[string]i
 	}
 
 	if apiObject.HealthCheck != nil {
-		m["health_check"] = []map[string]interface{}{flattenHealthCheckConfig(apiObject.HealthCheck)}
+		port := *apiObject.Port
+		if apiObject.HealthCheck.Port != nil {
+			port = *apiObject.HealthCheck.Port
+		}
+		m["health_check"] = []map[string]interface{}{flattenHealthCheckConfig(apiObject.HealthCheck, port)}
 	}
 
 	return []map[string]interface{}{m}
 }
 
-func flattenHealthCheckConfig(apiObject *types.HealthCheckConfig) map[string]interface{} {
+func flattenHealthCheckConfig(apiObject *types.HealthCheckConfig, port int32) map[string]interface{} {
 	if apiObject == nil {
 		return nil
 	}
@@ -458,7 +455,7 @@ func flattenHealthCheckConfig(apiObject *types.HealthCheckConfig) map[string]int
 		"healthy_threshold":   aws.Int32(*apiObject.HealthyThresholdCount),
 		"unhealthy_threshold": aws.Int32(*apiObject.UnhealthyThresholdCount),
 		"path":                aws.String(*apiObject.Path),
-		"port":                aws.Int32(*apiObject.Port),
+		"port":                aws.Int32(port),
 		"protocol":            string(apiObject.Protocol),
 		"protocol_version":    string(apiObject.ProtocolVersion),
 	}

@@ -66,6 +66,34 @@ func testAccCheckTargetGroupDestroy(ctx context.Context) resource.TestCheckFunc 
 		return nil
 	}
 }
+func testAccVPCLatticeTargetGroupConfigTypeLambda_base(rName string) string {
+	return acctest.ConfigCompose(acctest.ConfigAvailableAZsNoOptIn(), fmt.Sprintf(`
+data "aws_region" "current" {}
+
+resource "aws_vpclattice_target_group" "test" {
+	name     = %[1]q
+	type     = "LAMBDA"
+  }
+`, rName))
+}
+
+func testAccVPCLatticeTargetGroupConfigNoHealthCheck_base(rName string) string {
+	return acctest.ConfigCompose(acctest.ConfigAvailableAZsNoOptIn(), fmt.Sprintf(`
+data "aws_region" "current" {}
+
+resource "aws_vpclattice_target_group" "test" {
+	name     = %[1]q
+	type     = "IP"
+	config {
+	  port             = 80
+	  protocol         = "HTTP"
+	  vpc_identifier   = "vpc-08ae9103897a90142"
+	  ip_address_type  = "IPV4"
+	  protocol_version = "HTTP1"
+	}
+  }
+`, rName))
+}
 
 func testAccVPCLatticeTargetGroupConfig_base(rName string) string {
 	return acctest.ConfigCompose(acctest.ConfigAvailableAZsNoOptIn(), fmt.Sprintf(`
@@ -77,22 +105,20 @@ resource "aws_vpclattice_target_group" "test" {
 	config {
 	  port             = 80
 	  protocol         = "HTTP"
-	  vpc_identifier   = "vpc-00731d8d223dc0c6e"
+	  vpc_identifier   = "vpc-08ae9103897a90142"
 	  ip_address_type  = "IPV4"
 	  protocol_version = "HTTP1"
 	  health_check {
 		enabled             = true
-		health_check_interval_seconds            = 30
-		health_check_timeout_seconds             = 5
-		healthy_threshold_count   = 2
-		unhealthy_threshold_count = 2
-		matcher = {
-		  httpCode = "200-299"
-		}
-		path             = "/health"
-		port             = 80
-		protocol         = "HTTP"
-		protocol_version = "HTTP1"
+		interval           = 30
+		timeout            = 5
+		healthy_threshold   = 2
+		unhealthy_threshold = 2
+		matcher 		 		  = "200-299"
+		path             		  = "/health"
+		port             		  = 80
+		protocol         		  = "HTTP"
+		protocol_version 		  = "HTTP1"
 	  }
 	}
   }
