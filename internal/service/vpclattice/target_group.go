@@ -68,22 +68,27 @@ func ResourceTargetGroup() *schema.Resource {
 								Schema: map[string]*schema.Schema{
 									"enabled": {
 										Type:     schema.TypeBool,
+										Computed: true,
 										Optional: true,
 									},
 									"interval": {
 										Type:     schema.TypeInt,
+										Computed: true,
 										Optional: true,
 									},
 									"timeout": {
 										Type:     schema.TypeInt,
+										Computed: true,
 										Optional: true,
 									},
 									"healthy_threshold": {
 										Type:     schema.TypeInt,
+										Computed: true,
 										Optional: true,
 									},
 									"unhealthy_threshold": {
 										Type:     schema.TypeInt,
+										Computed: true,
 										Optional: true,
 									},
 									"matcher": {
@@ -93,22 +98,24 @@ func ResourceTargetGroup() *schema.Resource {
 									},
 									"path": {
 										Type:     schema.TypeString,
+										Computed: true,
 										Optional: true,
 									},
 									"port": {
 										Type:         schema.TypeInt,
+										Computed:     true,
 										Optional:     true,
 										ValidateFunc: validation.IsPortNumber,
 									},
 									"protocol": {
 										Type:     schema.TypeString,
+										Computed: true,
 										Optional: true,
 									},
 									"protocol_version": {
 										Type:     schema.TypeString,
 										Optional: true,
 										Computed: true,
-										ForceNew: true,
 										StateFunc: func(v interface{}) string {
 											return strings.ToUpper(v.(string))
 										},
@@ -123,13 +130,14 @@ func ResourceTargetGroup() *schema.Resource {
 						},
 						"ip_address_type": {
 							Type:     schema.TypeString,
+							Computed: true,
 							Optional: true,
 						},
 						"port": {
 							Type:         schema.TypeInt,
 							Optional:     true,
 							ForceNew:     true,
-							ValidateFunc: validation.IntBetween(1, 65535),
+							ValidateFunc: validation.IsPortNumber,
 						},
 						"protocol": {
 							Type:     schema.TypeString,
@@ -139,7 +147,6 @@ func ResourceTargetGroup() *schema.Resource {
 							Type:     schema.TypeString,
 							Optional: true,
 							Computed: true,
-							ForceNew: true,
 							StateFunc: func(v interface{}) string {
 								return strings.ToUpper(v.(string))
 							},
@@ -268,14 +275,11 @@ func resourceTargetGroupUpdate(ctx context.Context, d *schema.ResourceData, meta
 
 		if d.HasChange("config") {
 			oldConfig, newConfig := d.GetChange("config")
-			oldConfigMap := oldConfig.(map[string]interface{})
-			newConfigMap := newConfig.(map[string]interface{})
+			oldConfigMap := expandConfigAttributes(oldConfig.([]interface{})[0].(map[string]interface{}))
+			newConfigMap := expandConfigAttributes(newConfig.([]interface{})[0].(map[string]interface{}))
 
-			oldHealthCheck := expandHealthCheckConfigAttributes(oldConfigMap["health_check"].(map[string]interface{}))
-			newHealthCheck := expandHealthCheckConfigAttributes(newConfigMap["health_check"].(map[string]interface{}))
-
-			if !reflect.DeepEqual(oldHealthCheck, newHealthCheck) {
-				in.HealthCheck = newHealthCheck
+			if !reflect.DeepEqual(oldConfigMap.HealthCheck, newConfigMap.HealthCheck) {
+				in.HealthCheck = newConfigMap.HealthCheck
 			}
 		}
 
