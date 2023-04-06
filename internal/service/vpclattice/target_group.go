@@ -215,8 +215,8 @@ func resourceTargetGroupCreate(ctx context.Context, d *schema.ResourceData, meta
 
 	d.SetId(aws.ToString(out.Id))
 
-	if _, err := waitServiceCreated(ctx, conn, d.Id(), d.Timeout(schema.TimeoutCreate)); err != nil {
-		return create.DiagError(names.VPCLattice, create.ErrActionWaitingForCreation, ResNameService, d.Id(), err)
+	if _, err := waitTargetGroupCreated(ctx, conn, d.Id(), d.Timeout(schema.TimeoutCreate)); err != nil {
+		return create.DiagError(names.VPCLattice, create.ErrActionWaitingForCreation, ResNameTargetGroup, d.Id(), err)
 	}
 
 	return resourceTargetGroupRead(ctx, d, meta)
@@ -319,10 +319,11 @@ const (
 )
 
 func waitTargetGroupCreated(ctx context.Context, conn *vpclattice.Client, id string, timeout time.Duration) (*vpclattice.CreateTargetGroupOutput, error) {
+	const statusNormal = "ACTIVE"
 	stateConf := &resource.StateChangeConf{
-		Pending:                   enum.Slice(types.),
-		Target:                    enum.Slice(types.ServiceStatusActive),
-		Refresh:                   statusService(ctx, conn, id),
+		Pending:                   []string{string(types.TargetGroupStatusCreateInProgress)},
+		Target:                    []string{string(types.TargetGroupStatusActive)},
+		Refresh:                   statusTargetGroup(ctx, conn, id),
 		Timeout:                   timeout,
 		NotFoundChecks:            20,
 		ContinuousTargetOccurence: 2,
@@ -336,10 +337,28 @@ func waitTargetGroupCreated(ctx context.Context, conn *vpclattice.Client, id str
 	return nil, err
 }
 
+// func waitTargetGroupCreated(ctx context.Context, conn *vpclattice.Client, id string, timeout time.Duration) (*vpclattice.CreateTargetGroupOutput, error) {
+// 	stateConf := &resource.StateChangeConf{
+// 		Pending:                   enum.Slice(types.TargetGroupStatusCreateInProgress),
+// 		Target:                    enum.Slice(types.TargetGroupStatusActive),
+// 		Refresh:                   statusService(ctx, conn, id),
+// 		Timeout:                   timeout,
+// 		NotFoundChecks:            20,
+// 		ContinuousTargetOccurence: 2,
+// 	}
+
+// 	outputRaw, err := stateConf.WaitForStateContext(ctx)
+// 	if out, ok := outputRaw.(*vpclattice.CreateTargetGroupOutput); ok {
+// 		return out, err
+// 	}
+
+// 	return nil, err
+// }
+
 func waitTargetGroupUpdated(ctx context.Context, conn *vpclattice.Client, id string, timeout time.Duration) (*vpclattice.UpdateTargetGroupOutput, error) {
 	stateConf := &resource.StateChangeConf{
-		Pending:                   []string{statusChangePending},
-		Target:                    []string{statusUpdated},
+		Pending:                   enum.Slice(types.TargetGroupStatusCreateInProgress),
+		Target:                    enum.Slice(types.TargetGroupStatusActive),
 		Refresh:                   statusTargetGroup(ctx, conn, id),
 		Timeout:                   timeout,
 		NotFoundChecks:            20,
@@ -356,7 +375,7 @@ func waitTargetGroupUpdated(ctx context.Context, conn *vpclattice.Client, id str
 
 func waitTargetGroupDeleted(ctx context.Context, conn *vpclattice.Client, id string, timeout time.Duration) (*vpclattice.DeleteTargetGroupOutput, error) {
 	stateConf := &resource.StateChangeConf{
-		Pending: []string{statusDeleting, statusNormal},
+		Pending: enum.Slice(types.TargetGroupStatusDeleteInProgress, types.TargetGroupStatusActive),
 		Target:  []string{},
 		Refresh: statusTargetGroup(ctx, conn, id),
 		Timeout: timeout,
@@ -388,53 +407,6 @@ func statusTargetGroup(ctx context.Context, conn *vpclattice.Client, id string) 
 func findTargetGroupByID(ctx context.Context, conn *vpclattice.Client, id string) (*vpclattice.GetTargetGroupOutput, error) {
 	in := &vpclattice.GetTargetGroupInput{
 		TargetGroupIdentifier: aws.String(id),
-	}
-	out, err := conn.GetTargetGroup(ctx, in)
-	if err != nil {
-		var nfe *types.ResourceNotFoundException
-		if errors.As(err, &nfe) {
-			return nil, &resource.NotFoundError{
-				LastError:   err,
-				LastRequest: in,
-			}
-		}
-
-		return nil, err
-	}
-
-	if out == nil || out.Id == nil {
-		return nil, tfresource.NewEmptyResultError(in)
-	}
-
-	return out, nil
-}
-
-func findTargetGroupByARN(ctx context.Context, conn *vpclattice.Client, arn string) (*vpclattice.GetTargetGroupOutput, error) {
-	in := &vpclattice.GetTargetGroupInput{
-		TargetGroupIdentifier: aws.String(arn),
-	}
-	out, err := conn.GetTargetGroup(ctx, in)
-	if err != nil {
-		var nfe *types.ResourceNotFoundException
-		if errors.As(err, &nfe) {
-			return nil, &resource.NotFoundError{
-				LastError:   err,
-				LastRequest: in,
-			}
-		}
-
-		return nil, err
-	}
-
-	if out == nil || out.Id == nil {
-		return nil, tfresource.NewEmptyResultError(in)
-	}
-
-	return out, nil
-}
-func findTargetGroupByName(ctx context.Context, conn *vpclattice.Client, name string) (*vpclattice.GetTargetGroupOutput, error) {
-	in := &vpclattice.GetTargetGroupInput{
-		TargetGroupIdentifier: aws.String(name),
 	}
 	out, err := conn.GetTargetGroup(ctx, in)
 	if err != nil {
