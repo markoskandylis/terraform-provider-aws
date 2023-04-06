@@ -200,7 +200,7 @@ func resourceTargetGroupCreate(ctx context.Context, d *schema.ResourceData, meta
 		Name:        aws.String(d.Get("name").(string)),
 		Type:        types.TargetGroupType(d.Get("type").(string)),
 		ClientToken: aws.String(id.UniqueId()),
-		// Tags:        GetTagsIn(ctx),
+		Tags:        GetTagsIn(ctx),
 	}
 
 	if d.Get("type") != string(types.TargetGroupTypeLambda) {
