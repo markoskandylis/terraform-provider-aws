@@ -170,8 +170,12 @@ func ResourceTargetGroup() *schema.Resource {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
-			"tags":     tftags.TagsSchema(),
-			"tags_all": tftags.TagsSchemaComputed(),
+			"status": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			names.AttrTags:    tftags.TagsSchema(),
+			names.AttrTagsAll: tftags.TagsSchemaComputed(),
 		},
 	}
 }
@@ -225,7 +229,7 @@ func resourceTargetGroupCreate(ctx context.Context, d *schema.ResourceData, meta
 func resourceTargetGroupRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	conn := meta.(*conns.AWSClient).VPCLatticeClient()
 
-	out, err := findTargetGroupByID(ctx, conn, d.Id())
+	out, err := FindTargetGroupByID(ctx, conn, d.Id())
 
 	if !d.IsNewResource() && tfresource.NotFound(err) {
 		log.Printf("[WARN] VpcLattice TargetGroup (%s) not found, removing from state", d.Id())
@@ -239,6 +243,8 @@ func resourceTargetGroupRead(ctx context.Context, d *schema.ResourceData, meta i
 
 	d.Set("arn", out.Arn)
 	d.Set("name", out.Name)
+	d.Set("status", out.Status)
+	d.Set("type", out.Type)
 	if out.Config != nil {
 		if err := d.Set("config", flattenTargetGroupConfig(out.Config)); err != nil {
 			return create.DiagError(names.VPCLattice, create.ErrActionSetting, ResNameTargetGroup, d.Id(), err)
@@ -311,18 +317,17 @@ func resourceTargetGroupDelete(ctx context.Context, d *schema.ResourceData, meta
 	return nil
 }
 
-const (
-	statusChangePending = "Pending"
-	statusDeleting      = "Deleting"
-	statusNormal        = "Normal"
-	statusUpdated       = "Updated"
-)
+// const (
+// 	statusChangePending = "Pending"
+// 	statusDeleting      = "Deleting"
+// 	statusNormal        = "Normal"
+// 	statusUpdated       = "Updated"
+// )
 
 func waitTargetGroupCreated(ctx context.Context, conn *vpclattice.Client, id string, timeout time.Duration) (*vpclattice.CreateTargetGroupOutput, error) {
-	const statusNormal = "ACTIVE"
 	stateConf := &resource.StateChangeConf{
-		Pending:                   []string{string(types.TargetGroupStatusCreateInProgress)},
-		Target:                    []string{string(types.TargetGroupStatusActive)},
+		Pending:                   enum.Slice(types.TargetGroupStatusCreateInProgress),
+		Target:                    enum.Slice(types.TargetGroupStatusActive),
 		Refresh:                   statusTargetGroup(ctx, conn, id),
 		Timeout:                   timeout,
 		NotFoundChecks:            20,
@@ -336,24 +341,6 @@ func waitTargetGroupCreated(ctx context.Context, conn *vpclattice.Client, id str
 
 	return nil, err
 }
-
-// func waitTargetGroupCreated(ctx context.Context, conn *vpclattice.Client, id string, timeout time.Duration) (*vpclattice.CreateTargetGroupOutput, error) {
-// 	stateConf := &resource.StateChangeConf{
-// 		Pending:                   enum.Slice(types.TargetGroupStatusCreateInProgress),
-// 		Target:                    enum.Slice(types.TargetGroupStatusActive),
-// 		Refresh:                   statusService(ctx, conn, id),
-// 		Timeout:                   timeout,
-// 		NotFoundChecks:            20,
-// 		ContinuousTargetOccurence: 2,
-// 	}
-
-// 	outputRaw, err := stateConf.WaitForStateContext(ctx)
-// 	if out, ok := outputRaw.(*vpclattice.CreateTargetGroupOutput); ok {
-// 		return out, err
-// 	}
-
-// 	return nil, err
-// }
 
 func waitTargetGroupUpdated(ctx context.Context, conn *vpclattice.Client, id string, timeout time.Duration) (*vpclattice.UpdateTargetGroupOutput, error) {
 	stateConf := &resource.StateChangeConf{
@@ -391,7 +378,7 @@ func waitTargetGroupDeleted(ctx context.Context, conn *vpclattice.Client, id str
 
 func statusTargetGroup(ctx context.Context, conn *vpclattice.Client, id string) resource.StateRefreshFunc {
 	return func() (interface{}, string, error) {
-		out, err := findTargetGroupByID(ctx, conn, id)
+		out, err := FindTargetGroupByID(ctx, conn, id)
 		if tfresource.NotFound(err) {
 			return nil, "", nil
 		}
@@ -404,7 +391,7 @@ func statusTargetGroup(ctx context.Context, conn *vpclattice.Client, id string) 
 	}
 }
 
-func findTargetGroupByID(ctx context.Context, conn *vpclattice.Client, id string) (*vpclattice.GetTargetGroupOutput, error) {
+func FindTargetGroupByID(ctx context.Context, conn *vpclattice.Client, id string) (*vpclattice.GetTargetGroupOutput, error) {
 	in := &vpclattice.GetTargetGroupInput{
 		TargetGroupIdentifier: aws.String(id),
 	}
