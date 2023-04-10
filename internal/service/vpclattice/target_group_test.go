@@ -88,6 +88,34 @@ func TestAccVPCLatticeTargetGroup_full(t *testing.T) {
 	})
 }
 
+func TestAccVPCLatticeTargetGroup_disappears(t *testing.T) {
+	ctx := acctest.Context(t)
+	var targetGroup vpclattice.GetTargetGroupOutput
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	resourceName := "aws_vpclattice_target_group.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.PreCheck(ctx, t)
+			acctest.PreCheckPartitionHasService(t, names.VPCLatticeEndpointID)
+			testAccPreCheck(ctx, t)
+		},
+		ErrorCheck:               acctest.ErrorCheck(t, names.VPCLatticeEndpointID),
+		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories,
+		CheckDestroy:             testAccCheckServiceDestroy(ctx),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccVPCLatticeTargetGroupConfig_fulllambda(rName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckTargetGroupExists(ctx, resourceName, &targetGroup),
+					acctest.CheckResourceDisappears(ctx, acctest.Provider, tfvpclattice.ResourceTargetGroup(), resourceName),
+				),
+				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
 func testAccVPCLatticeTargetGroupConfig_fulllambda(rName string) string {
 	return fmt.Sprintf(`
 	data "aws_region" "current" {}
