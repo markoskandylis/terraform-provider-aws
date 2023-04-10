@@ -1,4 +1,26 @@
-## 4.62.0 (Unreleased)
+## 4.63.0 (Unreleased)
+
+NOTES:
+
+* resource/aws_servicecatalog_provisioned_product: Previously, this resource would error or hang until timeout and then error, if a stack had a `status` of `TAINTED`. Now, the resource will continue functioning normally if the `status` is `TAINTED`. This is because the stack is in a "stable state" and "ready to perform any operation." However, although "the stack has completed the requested operation," it "is not exactly what was requested." The `status` will reflect `TAINTED` and `status_message` will provide clues as to what happened. See the `aws_servicecatalog_provisioned_product` documentation for more information and ways to use logging with this. ([#30522](https://github.com/hashicorp/terraform-provider-aws/issues/30522))
+
+FEATURES:
+
+* **New Data Source:** `aws_dms_certificate` ([#30498](https://github.com/hashicorp/terraform-provider-aws/issues/30498))
+* **New Resource:** `aws_vpclattice_service_network_service_association` ([#30410](https://github.com/hashicorp/terraform-provider-aws/issues/30410))
+
+ENHANCEMENTS:
+
+* resource/aws_wafv2_web_acl: Add `aws_managed_rules_atp_rule_set` to `managed_rule_group_configs` configuration block ([#30518](https://github.com/hashicorp/terraform-provider-aws/issues/30518))
+
+BUG FIXES:
+
+* resource/aws_batch_compute_environment: Fix crash when `compute_resources.launch_template` is empty ([#30537](https://github.com/hashicorp/terraform-provider-aws/issues/30537))
+* resource/aws_launch_template: Fix crash when `instance_market_options.spot_options` is empty ([#30539](https://github.com/hashicorp/terraform-provider-aws/issues/30539))
+* resource/aws_msk_serverless_cluster: Change `vpc_config.security_group_ids` to Computed ([#30535](https://github.com/hashicorp/terraform-provider-aws/issues/30535))
+* resource/aws_servicecatalog_provisioned_product: Allow the waiting that comes with updating and deleting to not error due to a `status` of `TAINTED` ([#30522](https://github.com/hashicorp/terraform-provider-aws/issues/30522))
+
+## 4.62.0 (April  6, 2023)
 
 FEATURES:
 
@@ -460,7 +482,7 @@ BUG FIXES:
 * resource/aws_medialive_channel: Add missing `rate_control_mode` in `acc_settings` for `audio_descriptions` ([#29051](https://github.com/hashicorp/terraform-provider-aws/issues/29051))
 * resource/aws_medialive_input: Fix eventual consistency error when updating ([#29051](https://github.com/hashicorp/terraform-provider-aws/issues/29051))
 * resource/aws_vpc_ipam_pool_cidr_allocation: Added support for eventual consistency on read operations after create. ([#29022](https://github.com/hashicorp/terraform-provider-aws/issues/29022))
-* resource/aws_wafv2_web_acl: Fix error when setting `aws_managed_rules_bot_control_rule_set` in `manage_rule_group_config` ([#28810](https://github.com/hashicorp/terraform-provider-aws/issues/28810))
+* resource/aws_wafv2_web_acl: Fix error when setting `aws_managed_rules_bot_control_rule_set` in `managed_rule_group_configs` ([#28810](https://github.com/hashicorp/terraform-provider-aws/issues/28810))
 
 ## 4.51.0 (January 19, 2023)
 
